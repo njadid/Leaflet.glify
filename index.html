@@ -23,86 +23,70 @@
 <body>
 <div id="map"></div>
 <div id="lnlt"></div>
-<a href="https://github.com/robertleeplummerjr/Leaflet.glify">
-  <img
-      style="position: absolute; top: 0; right: 0; border: 0; z-index: 99999"
-      src="https://camo.githubusercontent.com/52760788cde945287fbb584134c4cbc2bc36f904/68747470733a2f2f73332e616d617a6f6e6177732e636f6d2f6769746875622f726962626f6e732f666f726b6d655f72696768745f77686974655f6666666666662e706e67"
-      alt="Fork me on GitHub"
-      data-canonical-src="https://s3.amazonaws.com/github/ribbons/forkme_right_white_ffffff.png"></a>
 </body>
-<link rel="stylesheet" href="bower_components/leaflet/dist/leaflet.css" />
-<script src="bower_components/leaflet/dist/leaflet.js"></script>
-<script src="glify.js"></script>
+<!--<link rel="stylesheet" href="bower_components/leaflet/dist/leaflet.css" />-->
+<!--<script src="bower_components/leaflet/dist/leaflet.js"></script>-->
+<script src="https://code.jquery.com/jquery-1.12.4.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.6.0/dist/leaflet.js"></script>
+<script src="glify_line_weight.js"></script>
+<script src="https://unpkg.com/pbf@3.0.5/dist/pbf.js"></script>
+<script src="https://unpkg.com/geobuf@3.0.1/dist/geobuf.js"></script>
 <script>
   var map = L.map('map')
-          .setView([50.00, 14.44], 7);
+          .setView([42.25, -93], 7);
 
-  L.tileLayer("http://{s}.sm.mapstack.stamen.com/(toner-background,$fff[difference],$fff[@23],$fff[hsl-saturation@20],toner-lines[destination-in])/{z}/{x}/{y}.png")
-    //L.tileLayer("http://{s}.sm.mapstack.stamen.com/(toner-lite,$fff[difference],$fff[@23],$fff[hsl-saturation@20])/{z}/{x}/{y}.png")
-    .addTo(map);
+  // L.tileLayer("http://{s}.sm.mapstack.stamen.com/(toner-background,$fff[difference],$fff[@23],$fff[hsl-saturation@20],toner-lines[destination-in])/{z}/{x}/{y}.png")
+  //   //L.tileLayer("http://{s}.sm.mapstack.stamen.com/(toner-lite,$fff[difference],$fff[@23],$fff[hsl-saturation@20])/{z}/{x}/{y}.png")
+  //   .addTo(map);
+  L.tileLayer("http://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png").addTo(map);
+let rvrData;
 
-  wget(['86T.json', 'CZDistricts.json', 'rivers.json'], function(points, districts, rivers) {
-    L.glify.shapes({
-      map: map,
-      click: function (e, feature) {
-        L.popup()
-          .setLatLng(e.latlng)
-          .setContent("You clicked on " + feature.properties.NAZKR_ENG)
-          .openOn(map);
 
-        console.log(feature);
-        console.log(e);
-      },
-      data: JSON.parse(districts)
+function drawRvr(src){
+
+
+    rvr = L.glify.lines({
+        map: map,
+        latitudeKey: 1,
+        longitudeKey: 0,
+        // weight:.11,
+        color:     function getColor(i,feature) {
+            d = feature.properties.link_id;
+            return d > 1000000 ? L.glify.color.fromHex('#800026') :
+                d > 500000 ? L.glify.color.fromHex('#BD0026') :
+                    d > 200000 ? L.glify.color.fromHex('#E31A1C') :
+                        d > 100000 ? L.glify.color.fromHex('#FC4E2A') :
+                            d > 50000 ? L.glify.color.fromHex('#FD8D3C') :
+                                d > 20000 ? L.glify.color.fromHex('#FEB24C') :
+                                    d > 10000 ? L.glify.color.fromHex('#FED976') :
+                                        L.glify.color.fromHex('#FFEDA0');
+        },
+        opacity:1,
+        click: function (e, feature) {
+            L.popup()
+                .setLatLng(e.latlng)
+                .setContent("You clicked on " + feature.properties.link_id)
+                .openOn(map);
+
+            console.log(feature);
+            console.log(e);
+        },
+        data: src,
     });
+    return rvr;
+}
 
-    L.glify.lines({
-      map: map,
-      latitudeKey: 1,
-      longitudeKey: 0,
-      click: function (e, feature) {
-        L.popup()
-          .setLatLng(e.latlng)
-          .setContent("You clicked on " + feature.properties.name)
-          .openOn(map);
 
-        console.log(feature);
-        console.log(e);
-      },
-      data: JSON.parse(rivers)
-    });
-
-    L.glify.points({
-      map: map,
-      click: function (e, point, xy) {
-        //set up a standalone popup (use a popup as a layer)
-        L.popup()
-            .setLatLng(point)
-            .setContent("You clicked the point at longitude:" + point[L.glify.longitudeKey] + ', latitude:' + point[L.glify.latitudeKey])
-            .openOn(map);
-
-        console.log(point);
-      },
-      data: JSON.parse(points)
-    });
-  });
-
-  function wget(urls, fn) {
-    var results = [],
-      complete = 0,
-      total = urls.length;
-
-    urls.forEach(function(url, i) {
-      var request = new XMLHttpRequest();
-      request.open('GET', url, true);
-      request.onload = function () {
-        if (request.status < 200 && request.status > 400) return;
-        results[i] = request.responseText;
-        complete++;
-        if (complete === total) fn.apply(null, results);
-      };
-      request.send();
-    });
+  function getData() {
+  var myRequest = new Request('network_90m.pbf');
+  fetch(myRequest).then(function(response) {
+      return response.arrayBuffer();
+  }).then(function(buffer) {
+      var geojson = geobuf.decode(new Pbf(buffer));
+      drawRvr(geojson);
+  })
   }
+  getData()
 </script>
 </html>
