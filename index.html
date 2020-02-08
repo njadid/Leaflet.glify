@@ -27,6 +27,9 @@
 <!--<link rel="stylesheet" href="bower_components/leaflet/dist/leaflet.css" />-->
 <!--<script src="bower_components/leaflet/dist/leaflet.js"></script>-->
 <script src="https://code.jquery.com/jquery-1.12.4.js"></script>
+<script type="text/javascript" src="dist/chroma.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.1.0/papaparse.min.js"></script>
+<script src="https://d3js.org/d3.v4.min.js"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.6.0/dist/leaflet.js"></script>
 <script src="glify_line_weight.js"></script>
@@ -39,18 +42,18 @@
   // L.tileLayer("http://{s}.sm.mapstack.stamen.com/(toner-background,$fff[difference],$fff[@23],$fff[hsl-saturation@20],toner-lines[destination-in])/{z}/{x}/{y}.png")
   //   //L.tileLayer("http://{s}.sm.mapstack.stamen.com/(toner-lite,$fff[difference],$fff[@23],$fff[hsl-saturation@20])/{z}/{x}/{y}.png")
   //   .addTo(map);
-  L.tileLayer("http://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png").addTo(map);
+  L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}").addTo(map);
 let rvrData;
 
 
 function drawRvr(src){
-
+    // function (i, feature) {console.log(feature.properties.h_order/3); return 1}
 
     rvr = L.glify.lines({
         map: map,
         latitudeKey: 1,
         longitudeKey: 0,
-        // weight:.11,
+        weight: 1,
         color:     function getColor(i,feature) {
             d = feature.properties.link_id;
             return d > 1000000 ? L.glify.color.fromHex('#800026') :
@@ -78,15 +81,92 @@ function drawRvr(src){
 }
 
 
-  function getData() {
-  var myRequest = new Request('network_90m.pbf');
+  function sortByKey(array, key) {
+      return array.sort(function(a, b) {
+          var x = a[key]; var y = b[key];
+          return ((x < y) ? -1 : ((x > y) ? 1 : 0));
+      });
+  }
+  function plotNetwork() {
+  var myRequest = new Request('gis_data/rvr_3above_wHorder.pbf');
   fetch(myRequest).then(function(response) {
       return response.arrayBuffer();
   }).then(function(buffer) {
       var geojson = geobuf.decode(new Pbf(buffer));
+
+      rvrData = geojson;
       drawRvr(geojson);
   })
   }
-  getData()
+  plotNetwork()
+let flow;
+  // d3.csv('1459468800.csv',
+  //     (error, data) => {
+  //       flow = data;
+  //         var min = Math.min.apply(null, flow.map(d =>Number(d.flow))),
+  //             max = Math.max.apply(null, flow.map(d =>Number(d.flow)));
+  //         _scale = chroma.scale(["#ffffcc", "#ffeda0", "#fed976", "#feb24c", "#fd8d3c", "#fc4e2a", "#e31a1c", "#bd0026", "#800026"]).domain([min,max], 10, 'equidistant');
+  //         console.log(_scale)
+  //         rvr.settings.color= function getColor(i,feature) {
+  //             d = feature.properties.link_id;
+  //             return d > 1000000 ? L.glify.color.fromHex('#B00026') :
+  //                 d > 500000 ? L.glify.color.fromHex('#BD0026') :
+  //                     d > 200000 ? L.glify.color.fromHex('#A31A1C') :
+  //                         d > 100000 ? L.glify.color.fromHex('#AC4E2A') :
+  //                             d > 50000 ? L.glify.color.fromHex('#AD8D3C') :
+  //                                 d > 20000 ? L.glify.color.fromHex('#AEB24C') :
+  //                                     d > 10000 ? L.glify.color.fromHex('#AED976') :
+  //                                         L.glify.color.fromHex('#AFEDA0');
+  //         }
+  //     }
+  // )
+  function colorcodeNetwork(fn) {
+      var flow;
+      var lids;
+      Papa.parse(fn,
+          {
+              download: true,
+              header: true,
+              delimiter: ',',
+              skipEmptyLines: true,
+              complete: function (results) {
+                  flow = results.data.map(d => Number(d.flow));
+                  lids = results.data.map(d => Number(d.lid));
+
+
+                  var min = Math.min.apply(null, flow),
+                      max = Math.max.apply(null, flow);
+                  _scale = chroma.scale(["#ffffcc", "#800026"]).domain([min, max], 10, 'equidistant');
+                  function getIndexToIns(arr, num) {
+                      return num;
+                  }
+                  rvr.settings.color = function getColor(i, feature) {
+
+                          d = feature.properties.link_id;
+
+                          try{
+                              idx = lids.indexOf(d);
+                              flw = flow[idx];
+                              return L.glify.color.fromHex(_scale(flw).hex())
+                          }
+                          catch{
+                              return {r:0,g:0,b:0,a:1}
+                          }
+
+
+
+                      // return d > 1000000 ? L.glify.color.fromHex('#B00026') :
+                      //     d > 500000 ? L.glify.color.fromHex('#BD0026') :
+                      //         d > 200000 ? L.glify.color.fromHex('#A31A1C') :
+                      //             d > 100000 ? L.glify.color.fromHex('#AC4E2A') :
+                      //                 d > 50000 ? L.glify.color.fromHex('#AD8D3C') :
+                      //                     d > 20000 ? L.glify.color.fromHex('#AEB24C') :
+                      //                         d > 10000 ? L.glify.color.fromHex('#AED976') :
+                      //                             L.glify.color.fromHex('#AFEDA0');
+                  }
+              }
+          }
+                  )
+  }
 </script>
 </html>
