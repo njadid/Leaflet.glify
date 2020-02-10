@@ -30,143 +30,129 @@
 <script type="text/javascript" src="dist/chroma.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.1.0/papaparse.min.js"></script>
 <script src="https://d3js.org/d3.v4.min.js"></script>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.6.0/dist/leaflet.js"></script>
 <script src="glify_line_weight.js"></script>
 <script src="https://unpkg.com/pbf@3.0.5/dist/pbf.js"></script>
 <script src="https://unpkg.com/geobuf@3.0.1/dist/geobuf.js"></script>
 <script>
-  var map = L.map('map')
-          .setView([42.25, -93], 7);
+    var map = L.map('map')
+        .setView([42.25, -93], 7);
+    L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}").addTo(map);
+    let rvrData;
 
-  // L.tileLayer("http://{s}.sm.mapstack.stamen.com/(toner-background,$fff[difference],$fff[@23],$fff[hsl-saturation@20],toner-lines[destination-in])/{z}/{x}/{y}.png")
-  //   //L.tileLayer("http://{s}.sm.mapstack.stamen.com/(toner-lite,$fff[difference],$fff[@23],$fff[hsl-saturation@20])/{z}/{x}/{y}.png")
-  //   .addTo(map);
-  L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}").addTo(map);
-let rvrData;
+    function colorByH_Order(i, feature) {
+        d = feature.properties.h_order;
+        return d > 7 ? L.glify.color.fromHex('#800026') :
+            d > 6 ? L.glify.color.fromHex('#BD0026') :
+                d > 5 ? L.glify.color.fromHex('#E31A1C') :
+                    d > 4 ? L.glify.color.fromHex('#FC4E2A') :
+                        d > 3 ? L.glify.color.fromHex('#FD8D3C') :
+                            d > 2 ? L.glify.color.fromHex('#FEB24C') :
+                                d > 1 ? L.glify.color.fromHex('#FED976') :
+                                    L.glify.color.fromHex('#FFEDA0');
+    }
 
+    function sizeByHOrder(i, feature) {
+        d = Number((feature.properties.h_order / 3).toFixed(1));
+        return d
+    }
 
-function drawRvr(src){
-    // function (i, feature) {console.log(feature.properties.h_order/3); return 1}
+    function drawRvr(src) {
+        rvr = L.glify.lines({
+            map: map,
+            latitudeKey: 1,
+            longitudeKey: 0,
+            color: function getColor(i, feature) {
+                d = feature.properties.link_id;
+                return d > 1000000 ? L.glify.color.fromHex('#800026') :
+                    d > 500000 ? L.glify.color.fromHex('#BD0026') :
+                        d > 200000 ? L.glify.color.fromHex('#E31A1C') :
+                            d > 100000 ? L.glify.color.fromHex('#FC4E2A') :
+                                d > 50000 ? L.glify.color.fromHex('#FD8D3C') :
+                                    d > 20000 ? L.glify.color.fromHex('#FEB24C') :
+                                        d > 10000 ? L.glify.color.fromHex('#FED976') :
+                                            L.glify.color.fromHex('#FFEDA0');
+            },
+            weight: 1,
+            opacity: 1,
+            click: function (e, feature) {
+                L.popup()
+                    .setLatLng(e.latlng)
+                    .setContent("You clicked on " + feature.properties.link_id)
+                    .openOn(map);
+                console.log(feature);
+                console.log(e);
+            },
+            data: src,
+        });
+        return rvr;
+    }
 
-    rvr = L.glify.lines({
-        map: map,
-        latitudeKey: 1,
-        longitudeKey: 0,
-        weight: 1,
-        color:     function getColor(i,feature) {
-            d = feature.properties.link_id;
-            return d > 1000000 ? L.glify.color.fromHex('#800026') :
-                d > 500000 ? L.glify.color.fromHex('#BD0026') :
-                    d > 200000 ? L.glify.color.fromHex('#E31A1C') :
-                        d > 100000 ? L.glify.color.fromHex('#FC4E2A') :
-                            d > 50000 ? L.glify.color.fromHex('#FD8D3C') :
-                                d > 20000 ? L.glify.color.fromHex('#FEB24C') :
-                                    d > 10000 ? L.glify.color.fromHex('#FED976') :
-                                        L.glify.color.fromHex('#FFEDA0');
-        },
-        opacity:1,
-        click: function (e, feature) {
-            L.popup()
-                .setLatLng(e.latlng)
-                .setContent("You clicked on " + feature.properties.link_id)
-                .openOn(map);
+    function plotNetwork() {
+        var myRequest = new Request('gis_data/rvr_3above_wHorder.pbf');
+        fetch(myRequest).then(function (response) {
+            return response.arrayBuffer();
+        }).then(function (buffer) {
+            var geojson = geobuf.decode(new Pbf(buffer));
+            rvrData = geojson;
+            rvr = drawRvr(geojson);
+//             new Promise(resolve => resolve(rvr))
+    Papa.parse('flow_files.txt',
+        {
+            download: true,
+            header: false,
+            delimiter: ',',
+            skipEmptyLines: true,
+            complete: function (results) {
+                flow_ts = results.data;
+                console.log(flow_ts)
+                for (var i = 0; i < flow_ts.length; i++) {
+                    fn = 'flow/' + flow_ts[i][0];
+                    colorcodeNetwork(fn);
 
-            console.log(feature);
-            console.log(e);
-        },
-        data: src,
-    });
-    return rvr;
-}
+//                     setTimeout(()=> 2000)
 
+                }
+            }
+        })
+            return rvr
+        })
+    }
 
-  function sortByKey(array, key) {
-      return array.sort(function(a, b) {
-          var x = a[key]; var y = b[key];
-          return ((x < y) ? -1 : ((x > y) ? 1 : 0));
-      });
-  }
-  function plotNetwork() {
-  var myRequest = new Request('gis_data/rvr_3above_wHorder.pbf');
-  fetch(myRequest).then(function(response) {
-      return response.arrayBuffer();
-  }).then(function(buffer) {
-      var geojson = geobuf.decode(new Pbf(buffer));
-
-      rvrData = geojson;
-      drawRvr(geojson);
-  })
-  }
-  plotNetwork()
-let flow;
-  // d3.csv('1459468800.csv',
-  //     (error, data) => {
-  //       flow = data;
-  //         var min = Math.min.apply(null, flow.map(d =>Number(d.flow))),
-  //             max = Math.max.apply(null, flow.map(d =>Number(d.flow)));
-  //         _scale = chroma.scale(["#ffffcc", "#ffeda0", "#fed976", "#feb24c", "#fd8d3c", "#fc4e2a", "#e31a1c", "#bd0026", "#800026"]).domain([min,max], 10, 'equidistant');
-  //         console.log(_scale)
-  //         rvr.settings.color= function getColor(i,feature) {
-  //             d = feature.properties.link_id;
-  //             return d > 1000000 ? L.glify.color.fromHex('#B00026') :
-  //                 d > 500000 ? L.glify.color.fromHex('#BD0026') :
-  //                     d > 200000 ? L.glify.color.fromHex('#A31A1C') :
-  //                         d > 100000 ? L.glify.color.fromHex('#AC4E2A') :
-  //                             d > 50000 ? L.glify.color.fromHex('#AD8D3C') :
-  //                                 d > 20000 ? L.glify.color.fromHex('#AEB24C') :
-  //                                     d > 10000 ? L.glify.color.fromHex('#AED976') :
-  //                                         L.glify.color.fromHex('#AFEDA0');
-  //         }
-  //     }
-  // )
-  function colorcodeNetwork(fn) {
-      var flow;
-      var lids;
-      Papa.parse(fn,
-          {
-              download: true,
-              header: true,
-              delimiter: ',',
-              skipEmptyLines: true,
-              complete: function (results) {
-                  flow = results.data.map(d => Number(d.flow));
-                  lids = results.data.map(d => Number(d.lid));
-
-
-                  var min = Math.min.apply(null, flow),
-                      max = Math.max.apply(null, flow);
-                  _scale = chroma.scale(["#ffffcc", "#800026"]).domain([min, max], 10, 'equidistant');
-                  function getIndexToIns(arr, num) {
-                      return num;
-                  }
-                  rvr.settings.color = function getColor(i, feature) {
-
-                          d = feature.properties.link_id;
-
-                          try{
-                              idx = lids.indexOf(d);
-                              flw = flow[idx];
-                              return L.glify.color.fromHex(_scale(flw).hex())
-                          }
-                          catch{
-                              return {r:0,g:0,b:0,a:1}
-                          }
+    rvr = plotNetwork()
+    let flow;
 
 
 
-                      // return d > 1000000 ? L.glify.color.fromHex('#B00026') :
-                      //     d > 500000 ? L.glify.color.fromHex('#BD0026') :
-                      //         d > 200000 ? L.glify.color.fromHex('#A31A1C') :
-                      //             d > 100000 ? L.glify.color.fromHex('#AC4E2A') :
-                      //                 d > 50000 ? L.glify.color.fromHex('#AD8D3C') :
-                      //                     d > 20000 ? L.glify.color.fromHex('#AEB24C') :
-                      //                         d > 10000 ? L.glify.color.fromHex('#AED976') :
-                      //                             L.glify.color.fromHex('#AFEDA0');
-                  }
-              }
-          }
-                  )
-  }
+    function colorcodeNetwork(fn) {
+        var flow;
+        var lids;
+        Papa.parse(fn,
+            {
+                download: true,
+                header: true,
+                delimiter: ',',
+                skipEmptyLines: true,
+                complete: function (results) {
+                    flow = results.data.map(d => Number(d.flow));
+                    lids = results.data.map(d => Number(d.lid));
+                    var min = Math.min.apply(null, flow),
+                        max = Math.max.apply(null, flow);
+                    _scale = chroma.scale(['lightyellow', 'navy']).domain([1, 1000], 7, 'log');
+                    rvr.settings.color = function getColor(i, feature) {
+                        d = feature.properties.link_id;
+                        flw = flow[i];
+                        return L.glify.color.fromHex(_scale(flw).hex())
+                    }
+                    rvr.render()
+                }
+            }
+        )
+    }
+
+
+    // )
+
 </script>
 </html>
